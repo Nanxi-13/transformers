@@ -74,7 +74,7 @@ except (LookupError, OSError):
         )
     with FileLock(".lock") as lock:
         nltk.download("punkt", quiet=True)
-
+# first set of keys are datasets. The values are tuples. one sequence to another sequence
 summarization_name_mapping = {
     "amazon_reviews_multi": ("review_body", "review_title"),
     "big_patent": ("description", "abstract"),
@@ -89,29 +89,29 @@ summarization_name_mapping = {
     "wiki_summary": ("article", "highlights"),
 }
 
-
+# all the arguments that you use thru the cmd. 
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a summarization task")
     parser.add_argument(
-        "--dataset_name",
+        "--dataset_name", #corresponds to the keys in the dict
         type=str,
         default=None,
         help="The name of the dataset to use (via the datasets library).",
     )
     parser.add_argument(
-        "--dataset_config_name",
+        "--dataset_config_name", #can leave as none
         type=str,
         default=None,
         help="The configuration name of the dataset to use (via the datasets library).",
     )
-    parser.add_argument(
+    parser.add_argument(  #if not using dataset, use train file if using own data
         "--train_file", type=str, default=None, help="A csv or a json file containing the training data."
     )
-    parser.add_argument(
+    parser.add_argument( # same^^
         "--validation_file", type=str, default=None, help="A csv or a json file containing the validation data."
     )
-    parser.add_argument(
-        "--ignore_pad_token_for_loss",
+    parser.add_argument( #if default is false, penalizes the model for predicting sth other than pad token. let model think about lenght of its output
+        "--ignore_pad_token_for_loss",  #pad token
         type=bool,
         default=True,
         help="Whether to ignore the tokens corresponding to padded labels in the loss computation or not.",
@@ -119,31 +119,32 @@ def parse_args():
     parser.add_argument(
         "--max_source_length",
         type=int,
-        default=1024,
+        default=1024, #384, 256 more reaonable. But might cut paragraph short. 1024 takes up too much memory
         help=(
             "The maximum total input sequence length after "
             "tokenization.Sequences longer than this will be truncated, sequences shorter will be padded."
         ),
     )
     parser.add_argument(
-        "--source_prefix",
+        "--source_prefix", #some models have a prefix. eg. Paragraph: is a prefix. all the sources will indluce this prefix. Most
+        #applicable with T5
         type=str,
         default=None,
         help="A prefix to add before every source text (useful for T5 models).",
     )
     parser.add_argument(
-        "--preprocessing_num_workers",
+        "--preprocessing_num_workers", #
         type=int,
         default=None,
         help="The number of processes to use for the preprocessing.",
     )
-    parser.add_argument(
+    parser.add_argument( # saves some cache files
         "--overwrite_cache", action="store_true", help="Overwrite the cached training and evaluation sets"
     )
     parser.add_argument(
-        "--max_target_length",
+        "--max_target_length", #for output
         type=int,
-        default=128,
+        default=128, #good default
         help=(
             "The maximum total sequence length for target text after "
             "tokenization. Sequences longer than this will be truncated, sequences shorter will be padded."
@@ -151,7 +152,7 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "--val_max_target_length",
+        "--val_max_target_length", #doing validation. Validation: testing model's performance on a set of new data. purpose: fine tune 
         type=int,
         default=None,
         help=(
@@ -161,6 +162,7 @@ def parse_args():
             "param of ``model.generate``, which is used during ``evaluate`` and ``predict``."
         ),
     )
+    # deprecated?
     parser.add_argument(
         "--max_length",
         type=int,
@@ -171,7 +173,7 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "--num_beams",
+        "--num_beams", #beam search algo. Several channels the model uses at once to find the best seq
         type=int,
         default=None,
         help=(
@@ -180,36 +182,36 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "--pad_to_max_length",
+        "--pad_to_max_length", #always enable this
         action="store_true",
         help="If passed, pad all samples to `max_length`. Otherwise, dynamic padding is used.",
     )
     parser.add_argument(
-        "--model_name_or_path",
+        "--model_name_or_path", #type of summarization model you use. Include this
         type=str,
         help="Path to pretrained model or model identifier from huggingface.co/models.",
         required=False,
     )
     parser.add_argument(
-        "--config_name",
+        "--config_name", #same thing as above
         type=str,
         default=None,
         help="Pretrained config name or path if not the same as model_name",
     )
     parser.add_argument(
-        "--tokenizer_name",
+        "--tokenizer_name", #^^
         type=str,
         default=None,
         help="Pretrained tokenizer name or path if not the same as model_name",
     )
     parser.add_argument(
-        "--text_column",
+        "--text_column", #input seq
         type=str,
         default=None,
         help="The name of the column in the datasets containing the full texts (for summarization).",
     )
     parser.add_argument(
-        "--summary_column",
+        "--summary_column", #target
         type=str,
         default=None,
         help="The name of the column in the datasets containing the summaries (for summarization).",
@@ -220,7 +222,7 @@ def parse_args():
         help="If passed, will use a slow tokenizer (not backed by the 🤗 Tokenizers library).",
     )
     parser.add_argument(
-        "--per_device_train_batch_size",
+        "--per_device_train_batch_size", #amount of input and target batch
         type=int,
         default=8,
         help="Batch size (per device) for the training dataloader.",
@@ -232,7 +234,7 @@ def parse_args():
         help="Batch size (per device) for the evaluation dataloader.",
     )
     parser.add_argument(
-        "--learning_rate",
+        "--learning_rate", #adusts the model's learning rate bc of model's learning loss
         type=float,
         default=5e-5,
         help="Initial learning rate (after the potential warmup period) to use.",
@@ -241,7 +243,7 @@ def parse_args():
     parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_train_steps",
-        type=int,
+        type=int, #3 is a good value. epoch is the num of times the models runs through the data
         default=None,
         help="Total number of training steps to perform. If provided, overrides num_train_epochs.",
     )
@@ -252,15 +254,15 @@ def parse_args():
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
     parser.add_argument(
-        "--lr_scheduler_type",
+        "--lr_scheduler_type", #learning rate will decay linearly
         type=SchedulerType,
         default="linear",
         help="The scheduler type to use.",
         choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
     )
-    parser.add_argument(
+    parser.add_argument( #increase learning rate slowly and then decay
         "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
-    )
+    ) #10% good number
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
     parser.add_argument(
